@@ -34,6 +34,10 @@ def run_inference(device_str: str, checkpoint_path: str, image_path: str, prompt
     t_model = time.time() - t0
     print(f"      Model yukleme suresi: {t_model:.2f} saniye")
 
+    if use_half:
+        print("      Model yariya indiriliyor (bfloat16)...")
+        model = model.bfloat16()
+
     # ---- Image Loading ----
     print(f"\n[2/3] Gorsel yukleniyor: {image_path}")
     image = Image.open(image_path).convert("RGB")
