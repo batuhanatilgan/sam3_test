@@ -9,6 +9,7 @@ import time
 
 import numpy as np
 import torch
+import contextlib
 from PIL import Image
 
 
@@ -44,11 +45,26 @@ def run_inference(device_str: str, checkpoint_path: str, image_path: str, prompt
     print(f"      Gorsel boyutu: {image.size}")
 
     processor = Sam3Processor(model, device=device_str)
+    
+    if use_half:
+        from torchvision.transforms import v2
+        # Patch the transform to output bfloat16 instead of float32
+        new_transforms = []
+        for t in processor.transform.transforms:
+            if isinstance(t, v2.ToDtype) and t.dtype == torch.float32:
+                new_transforms.append(v2.ToDtype(torch.bfloat16, scale=True))
+            else:
+                new_transforms.append(t)
+        processor.transform = v2.Compose(new_transforms)
 
     # ---- Inference ----
     print(f"\n[3/3] Inference basliyor (prompt: '{prompt}')...")
     t1 = time.time()
-    with torch.no_grad():
+    
+    # Use autocast to handle Float32 to BFloat16 conversions seamlessly
+    autocast_ctx = torch.autocast(device_type=device_str if device_str != "mps" else "cpu", dtype=torch.bfloat16) if use_half else contextlib.nullcontext()
+    
+    with torch.no_grad(), autocast_ctx:
         inference_state = processor.set_image(image)
         t_set_image = time.time() - t1
 
